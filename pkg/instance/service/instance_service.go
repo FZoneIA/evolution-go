@@ -300,6 +300,14 @@ func (i instances) Connect(data *ConnectStruct, instance *instance_model.Instanc
 }
 
 func (i instances) Reconnect(instance *instance_model.Instance) error {
+	// A client left in memory and disconnected (failed dial, ConnectFailure) is exactly what
+	// ReconnectClient cleans up; ensureClientConnected would refuse it and nothing else restarts it.
+	// IsConnected waits for any dial in progress, so this cannot interrupt one.
+	if client := i.clientPointer[instance.Id]; client != nil && !client.IsConnected() {
+		i.loggerWrapper.GetLogger(instance.Id).LogInfo("[%s] Client in memory is disconnected, restarting it", instance.Id)
+		return i.whatsmeowService.ReconnectClient(instance.Id)
+	}
+
 	_, err := i.ensureClientConnected(instance.Id)
 	if err != nil {
 		return err
